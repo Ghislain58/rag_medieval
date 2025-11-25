@@ -7,8 +7,14 @@ services:
     restart: unless-stopped
     volumes:
       - ollama_data:/root/.ollama
-    # Quand tu voudras tester Ollama avec GPU aussi, tu pourras ajouter :
-    # gpus: all
+    # ⚙️ GPU pour Ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
 
   rag_app:
     build: .
@@ -20,8 +26,14 @@ services:
       - OLLAMA_URL=http://ollama:11434
     depends_on:
       - ollama
-    # ⬇️ Préparation pour le GPU
-    gpus: all
+    # ⚙️ GPU aussi dispo pour ton RAG (embeddings / Whisper, etc.)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
 
 volumes:
   ollama_data:
