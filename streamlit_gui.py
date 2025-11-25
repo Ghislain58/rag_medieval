@@ -1,5 +1,12 @@
 import streamlit as st
-from rag_api import add_pdf, add_image, transcribe_audio, answer
+from rag_api import (
+    add_pdf,
+    add_image,
+    transcribe_audio,
+    answer,
+    index_overview,
+    delete_source_from_index,
+)
 
 st.set_page_config(
     page_title="RAG médiéval local",
@@ -16,8 +23,8 @@ médiéviste critique.
 """
 )
 
-tab_pdf, tab_img, tab_audio, tab_q = st.tabs(
-    ["📄 PDF", "🖼 Images", "🎙 Audio / vidéo", "❓ Questions"]
+tab_pdf, tab_img, tab_audio, tab_index, tab_q = st.tabs(
+    ["📄 PDF", "🖼 Images", "🎙 Audio / vidéo", "📚 Index & nettoyage", "❓ Questions"]
 )
 
 # -----------------------------
@@ -69,6 +76,48 @@ with tab_audio:
             st.success(f"{f.name} transcrit et indexé.")
             with st.expander(f"Transcription de {f.name}"):
                 st.write(txt)
+
+# -----------------------------
+# NOUVEL ONGLET : Index & nettoyage
+# -----------------------------
+with tab_index:
+    st.header("Voir et nettoyer l’index vectoriel")
+
+    overview = index_overview()
+    total = overview.get("total_chunks", 0)
+    items = overview.get("by_source", [])
+
+    st.markdown(f"**Chunks indexés au total :** {total}")
+
+    if not items:
+        st.info("Aucun document indexé pour le moment.")
+    else:
+        st.markdown("### Documents indexés")
+        for i, item in enumerate(items):
+            cols = st.columns([5, 2, 2])
+            source = item.get("source", "inconnu")
+            doc_type = item.get("doc_type", "unknown")
+            n_chunks = item.get("n_chunks", 0)
+
+            with cols[0]:
+                st.markdown(f"**{source}**")
+                st.caption(f"Type : {doc_type}")
+
+            with cols[1]:
+                st.write(f"Chunks : {n_chunks}")
+
+            with cols[2]:
+                if st.button("Supprimer", key=f"delete-{i}"):
+                    res = delete_source_from_index(source)
+                    if res.get("status") == "ok":
+                        deleted = res.get("deleted")
+                        if deleted is not None:
+                            st.success(f"{source} supprimé ({deleted} chunks).")
+                        else:
+                            st.success(f"{source} supprimé.")
+                        st.experimental_rerun()
+                    else:
+                        st.error(f"Erreur : {res.get('error')}")
 
 # -----------------------------
 # Onglet Questions
