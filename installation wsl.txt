@@ -1,0 +1,97 @@
+3. Installation du projet dans WSL
+
+Dans WSL :
+
+cd ~
+mkdir -p rag_medieval
+cd rag_medieval
+
+
+Placer dans ce dossier les fichiers :
+
+Dockerfile
+
+rag_api.py
+
+streamlit_gui.py
+
+(soit en copiant depuis Windows, soit en les créant/éditant avec VS Code via code ..)
+
+Arborescence attendue :
+
+~/rag_medieval
+├── Dockerfile
+├── rag_api.py
+└── streamlit_gui.py
+
+4. Construire l’image Docker de l’application
+
+Toujours dans ~/rag_medieval :
+
+docker build --no-cache -t rag_medieval_app .
+
+
+Cette étape :
+
+installe Python + PyTorch GPU (CUDA 12.1)
+
+installe Whisper, ChromaDB, SentenceTransformers, Streamlit, etc.
+
+copie rag_api.py et streamlit_gui.py dans l’image
+
+5. Créer le réseau Docker pour RAG + Ollama
+docker network create rag-net || true
+
+
+Le réseau rag-net permet à l’app RAG de parler à Ollama par son nom de conteneur (ollama).
+
+6. Lancer Ollama et télécharger le modèle
+6.1 Lancer le conteneur Ollama
+docker run --gpus all -d \
+  --name ollama \
+  --network rag-net \
+  ollama/ollama
+
+6.2 Télécharger le modèle mistral
+docker exec -it ollama ollama pull mistral
+
+
+Le modèle est stocké dans le conteneur Ollama et sera appelé par le RAG via HTTP.
+
+7. Lancer l’application RAG (Streamlit + ChromaDB)
+
+Créer un volume Docker pour la persistance des données :
+
+# Le volume sera créé automatiquement si absent, mais on peut le créer à la main
+docker volume create rag_data
+
+
+Lancer le conteneur de l’app :
+
+docker run --gpus all -d \
+  --name rag_app \
+  --network rag-net \
+  -p 8501:8501 \
+  -v rag_data:/app/data \
+  -e CHROMA_DIR="/app/data/chroma" \
+  -e OLLAMA_URL="http://ollama:11434" \
+  -e OLLAMA_MODEL="mistral" \
+  rag_medieval_app
+
+
+Port 8501 exposé → interface Streamlit
+
+Volume rag_data monté sur /app/data → persistance ChromaDB
+
+8. Accéder à l’interface
+
+Sur Windows, ouvrir un navigateur et aller sur :
+
+http://localhost:8501
+
+
+Tu devrais voir :
+
+Titre : RAG médiéval local (Docker + GPU + ChromaDB)
+
+4 onglets : PDF, Images, Audio / vidéo, Questions
