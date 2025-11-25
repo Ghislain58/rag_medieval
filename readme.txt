@@ -1,4 +1,63 @@
-Prérequis
+
+# RAG médiéval local (Docker + GPU + Ollama + ChromaDB + Streamlit)
+
+Ce projet fournit un **moteur RAG local** pensé pour des corpus historiques/médiévaux :
+
+- Ingestion de **PDF**, **images** (OCR) et **audio/vidéo** (Whisper)
+- Embeddings via **Sentence Transformers** (`multi-qa-mpnet-base-dot-v1`)
+- Indexation dans une base vectorielle **ChromaDB** (persistante sur disque)
+- Génération des réponses via un **LLM local** (Ollama + `mistral`)
+- Interface utilisateur en **Streamlit** (4 onglets)
+
+Tout tourne dans un conteneur Docker GPU sous WSL2.
+
+---
+
+## Architecture
+
+Dépôt minimal :
+
+```text
+rag_medieval/
+├── Dockerfile          # Image Docker (CUDA, PyTorch, Whisper, Chroma, Streamlit...)
+├── rag_api.py          # Backend RAG (ingestion, embeddings, Chroma, LLM)
+└── streamlit_gui.py    # Interface Streamlit (PDF / images / audio / questions)
+
+Pipeline RAG
+
+Ingestion
+
+PDF → texte via pypdf
+
+Images → OCR via pytesseract (lat+fra)
+
+Audio/vidéo → transcription via whisper (modèle small)
+
+Chunking + embeddings
+
+Découpage en chunks de texte (~1000 caractères, overlap 200)
+
+Encodage via SentenceTransformer("multi-qa-mpnet-base-dot-v1")
+
+Indexation
+
+Stockage des embeddings + textes + métadonnées dans ChromaDB
+
+Client persistant : chromadb.PersistentClient(path=CHROMA_DIR)
+
+Collection : historical_rag
+
+Persistance dans un volume Docker rag_data:/app/data
+
+Question / Réponse
+
+Requête → embedding → recherche top_k dans Chroma
+
+Construction d’un prompt historien critique (avec extraits numérotés)
+
+Appel à Ollama (mistral) via HTTP
+
+Réponse structurée + rappel des sources utiliséesPrérequis
 
 Windows 10/11 avec WSL2 (Ubuntu)
 
@@ -8,7 +67,10 @@ GPU NVIDIA compatible CUDA + drivers à jour
 
 NVIDIA Container Toolkit installé côté WSL (pour --gpus all)
 
+
+
 Dans WSL, vérifier :
+
 
 nvidia-smi
 docker run --rm --gpus all nvidia/cuda:12.2.2-runtime-ubuntu22.04 nvidia-smi
@@ -27,23 +89,24 @@ docker network create rag-net || true
 
 # 3. Lancer Ollama (LLM local)
 docker run --gpus all -d \
-  --name ollama \
-  --network rag-net \
-  ollama/ollama
+  --name ollama \
+  --network rag-net \
+  ollama/ollama
 
 # 4. Télécharger le modèle Mistral dans Ollama
 docker exec -it ollama ollama pull mistral
 
 # 5. Lancer l'application RAG (Streamlit + Chroma)
 docker run --gpus all -d \
-  --name rag_app \
-  --network rag-net \
-  -p 8501:8501 \
-  -v rag_data:/app/data \
-  -e CHROMA_DIR="/app/data/chroma" \
-  -e OLLAMA_URL="http://ollama:11434" \
-  -e OLLAMA_MODEL="mistral" \
-  rag_medieval_app
+  --name rag_app \
+  --network rag-net \
+  -p 8501:8501 \
+  -v rag_data:/app/data \
+  -e CHROMA_DIR="/app/data/chroma" \
+  -e OLLAMA_URL="http://ollama:11434" \
+  -e OLLAMA_MODEL="mistral" \
+  rag_medieval_app
+
 
 
 Interface disponible sur :
@@ -100,3 +163,6 @@ docker logs rag_app
 Afficher les logs d’Ollama (appel LLM) :
 
 docker logs ollama
+
+
+
